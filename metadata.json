@@ -1,0 +1,8 @@
+{
+  "name": "Lumina AI",
+  "description": "A premium AI assistant app with multi-model switching, image/video generation, and memory.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
