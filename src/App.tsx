@@ -7,7 +7,7 @@ import { InputBar } from './components/InputBar';
 import { ModelSelector } from './components/ModelSelector';
 import { ModelType, GalleryItem } from './types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Bot, LogIn, Settings, Search, ImageIcon } from 'lucide-react';
+import { Sparkles, Bot, LogIn, Settings, Search, ImageIcon, Menu } from 'lucide-react';
 import { cn } from './lib/utils';
 import { firebaseService } from './services/firebaseService';
 
@@ -26,9 +26,9 @@ const translations = {
     video: "Video",
     noChats: "No chats yet. Start a new one!",
     noGallery: "No generated images yet.",
-    welcome: "Welcome to Lumina AI",
+    welcome: "Welcome to Farha",
     welcomeDesc: "Your premium AI assistant for everything.",
-    loginTitle: "Lumina AI",
+    loginTitle: "Farha",
     loginDesc: "Experience the next generation of AI",
     loginButton: "Sign in with Google",
     videoPlaceholder: "Describe the video you want to generate...",
@@ -54,9 +54,9 @@ const translations = {
     video: "فيديو",
     noChats: "لا توجد محادثات بعد. ابدأ واحدة جديدة!",
     noGallery: "لا توجد صور منشأة بعد.",
-    welcome: "مرحباً بك في Lumina AI",
+    welcome: "مرحباً بك في فرحه",
     welcomeDesc: "مساعدك الذكي المتميز لكل شيء.",
-    loginTitle: "Lumina AI",
+    loginTitle: "فرحه",
     loginDesc: "اختبر الجيل القادم من الذكاء الاصطناعي",
     loginButton: "تسجيل الدخول باستخدام Google",
     suggestions: [
@@ -69,11 +69,26 @@ const translations = {
 };
 
 export default function App() {
-  const { user, loading: authLoading, signIn, logOut, isAuthenticated } = useAuth();
+  const { user, loading: authLoading, signIn, signInAsGuest, logOut, isAuthenticated } = useAuth();
   const [language, setLanguage] = React.useState<'en' | 'ar'>('en');
   const [view, setView] = React.useState<'chat' | 'gallery'>('chat');
   const [galleryItems, setGalleryItems] = React.useState<GalleryItem[]>([]);
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const [authError, setAuthError] = React.useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = React.useState<boolean>(true);
+
+  const handleGuestLogin = async () => {
+    try {
+      setAuthError(null);
+      await signInAsGuest();
+    } catch (error: any) {
+      if (error?.code === 'auth/admin-restricted-operation') {
+        setAuthError("Anonymous Authentication is not enabled. Please enable it in your Firebase Console > Authentication > Sign-in method.");
+      } else {
+        setAuthError("Failed to sign in as guest. Please try again.");
+      }
+    }
+  };
 
   const { 
     chats, 
@@ -91,6 +106,21 @@ export default function App() {
     studyMode,
     setStudyMode
   } = useChat(user?.uid || null);
+
+  const handleSendMessage = async (text: string) => {
+    setIsSidebarOpen(false);
+    await sendMessage(text);
+  };
+
+  const handleGenerateImage = async (prompt: string, image?: string) => {
+    setIsSidebarOpen(false);
+    await generateImage(prompt, image);
+  };
+
+  const handleGenerateVideo = async (prompt: string, image?: string) => {
+    setIsSidebarOpen(false);
+    await generateVideo(prompt, image);
+  };
 
   const t = translations[language];
 
@@ -125,7 +155,7 @@ export default function App() {
           <Sparkles size={48} className="text-white" />
         </motion.div>
         <div className="flex flex-col items-center gap-2">
-          <h1 className="text-2xl font-bold text-white tracking-tight">Lumina AI</h1>
+          <h1 className="text-2xl font-bold text-white tracking-tight">{language === 'ar' ? 'فرحه' : 'Farha'}</h1>
           <p className="text-white/40 text-sm font-medium uppercase tracking-widest">Initializing Intelligence</p>
         </div>
       </div>
@@ -143,7 +173,7 @@ export default function App() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
               <Sparkles size={20} className="text-white" />
             </div>
-            <h1 className="text-xl font-bold text-white tracking-tight">Lumina AI</h1>
+            <h1 className="text-xl font-bold text-white tracking-tight">{language === 'ar' ? 'فرحه' : 'Farha'}</h1>
           </div>
 
           <div className="max-w-2xl">
@@ -163,6 +193,16 @@ export default function App() {
               Experience a premium AI assistant with multi-model intelligence, real-time memory, and creative generation capabilities.
             </motion.p>
 
+            {authError && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm"
+              >
+                {authError}
+              </motion.div>
+            )}
+
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -176,6 +216,12 @@ export default function App() {
                 <LogIn size={20} />
                 Get Started with Google
               </button>
+              <button 
+                onClick={handleGuestLogin}
+                className="flex items-center justify-center gap-3 bg-white/5 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-white/10 transition-all hover:scale-105 active:scale-95 border border-white/10"
+              >
+                Continue without an account
+              </button>
             </motion.div>
           </div>
         </div>
@@ -185,28 +231,46 @@ export default function App() {
 
   return (
     <div className={cn("h-screen w-screen bg-[#050505] flex text-white overflow-hidden font-sans", language === 'ar' && "flex-row-reverse")}>
-      <Sidebar 
-        chats={chats} 
-        currentChatId={currentChatId} 
-        onSelectChat={setCurrentChatId}
-        onNewChat={() => createNewChat(t.newChat)}
-        onDeleteChat={deleteChat}
-        user={user}
-        onLogout={logOut}
-        language={language}
-        setLanguage={setLanguage}
-        view={view}
-        setView={setView}
-        t={t}
-      />
+      <AnimatePresence initial={false}>
+        {isSidebarOpen && (
+          <motion.div
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 320, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="h-full shrink-0 overflow-hidden"
+          >
+            <Sidebar 
+              chats={chats} 
+              currentChatId={currentChatId} 
+              onSelectChat={setCurrentChatId}
+              onNewChat={() => createNewChat(t.newChat)}
+              onDeleteChat={deleteChat}
+              user={user}
+              onLogout={logOut}
+              language={language}
+              setLanguage={setLanguage}
+              view={view}
+              setView={setView}
+              t={t}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="flex-1 flex flex-col relative overflow-hidden">
         <header className={cn("h-16 flex items-center justify-between px-6 border-b border-white/10 glass-dark z-20", language === 'ar' && "flex-row-reverse")}>
           <div className={cn("flex items-center gap-3", language === 'ar' && "flex-row-reverse")}>
+            <button 
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-2 -ml-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+            >
+              <Menu size={20} />
+            </button>
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
               <Sparkles size={16} className="text-white" />
             </div>
-            <h2 className="font-bold tracking-tight">{view === 'gallery' ? t.gallery : (currentChat?.title || "Lumina AI")}</h2>
+            <h2 className="font-bold tracking-tight">{view === 'gallery' ? t.gallery : (currentChat?.title || (language === 'ar' ? "فرحه" : "Farha"))}</h2>
           </div>
 
           <div className={cn("flex items-center gap-4", language === 'ar' && "flex-row-reverse")}>
@@ -294,7 +358,7 @@ export default function App() {
                     {t.suggestions.map((suggestion, i) => (
                       <button 
                         key={i}
-                        onClick={() => sendMessage(suggestion)}
+                        onClick={() => handleSendMessage(suggestion)}
                         className={cn(
                           "p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all text-sm font-medium text-white/60 hover:text-white",
                           language === 'ar' ? "text-right" : "text-left"
@@ -336,9 +400,9 @@ export default function App() {
         {view === 'chat' && (
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#050505] via-[#050505]/90 to-transparent pt-10">
             <InputBar 
-              onSend={sendMessage} 
-              onGenerateImage={generateImage}
-              onGenerateVideo={generateVideo}
+              onSend={handleSendMessage} 
+              onGenerateImage={handleGenerateImage}
+              onGenerateVideo={handleGenerateVideo}
               loading={chatLoading} 
               language={language}
               t={t}

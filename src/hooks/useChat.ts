@@ -13,11 +13,17 @@ export function useChat(userId: string | undefined) {
 
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
 
+  const [memory, setMemory] = useState<string[]>([]);
+
   useEffect(() => {
     if (!userId) return;
 
-    const unsubscribe = firebaseService.subscribeToChats(userId, (updatedChats) => {
+    const unsubscribeChats = firebaseService.subscribeToChats(userId, (updatedChats) => {
       setChats(updatedChats);
+    });
+
+    const unsubscribeMemory = firebaseService.subscribeToMemory(userId, (facts) => {
+      setMemory(facts);
     });
 
     // Fetch gallery items
@@ -25,7 +31,10 @@ export function useChat(userId: string | undefined) {
       if (items) setGalleryItems(items);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeChats();
+      unsubscribeMemory();
+    };
   }, [userId]);
 
   const currentChat = chats.find(c => c.id === currentChatId);
@@ -77,8 +86,13 @@ export function useChat(userId: string | undefined) {
         content, 
         mode, 
         studyMode, 
-        updatedMessages.map(m => ({ role: m.role, content: m.content }))
+        updatedMessages.map(m => ({ role: m.role, content: m.content })),
+        memory
       );
+
+      if (response.newFacts && response.newFacts.length > 0) {
+        await firebaseService.addUserMemory(userId, response.newFacts);
+      }
 
       const assistantMessage: Message = {
         id: uuidv4(),
@@ -113,6 +127,17 @@ export function useChat(userId: string | undefined) {
 
     if (!chat) return;
 
+    const userMessage: Message = {
+      id: uuidv4(),
+      role: 'user',
+      content: prompt,
+      timestamp: Date.now()
+    };
+
+    const updatedMessages = [...chat.messages, userMessage];
+    const updatedChat = { ...chat, messages: updatedMessages, updatedAt: Date.now() };
+    await firebaseService.saveChat(updatedChat);
+
     setLoading(true);
     try {
       const imageUrl = await aiService.generateImage(prompt);
@@ -139,13 +164,13 @@ export function useChat(userId: string | undefined) {
         mediaUrl: imageUrl
       };
 
-      const updatedChat = { 
-        ...chat, 
-        messages: [...chat.messages, assistantMessage], 
+      const finalChat = { 
+        ...updatedChat, 
+        messages: [...updatedMessages, assistantMessage], 
         updatedAt: Date.now() 
       };
       
-      await firebaseService.saveChat(updatedChat);
+      await firebaseService.saveChat(finalChat);
     } catch (error) {
       console.error("Error generating image", error);
     } finally {
@@ -163,6 +188,17 @@ export function useChat(userId: string | undefined) {
 
     if (!chat) return;
 
+    const userMessage: Message = {
+      id: uuidv4(),
+      role: 'user',
+      content: prompt,
+      timestamp: Date.now()
+    };
+
+    const updatedMessages = [...chat.messages, userMessage];
+    const updatedChat = { ...chat, messages: updatedMessages, updatedAt: Date.now() };
+    await firebaseService.saveChat(updatedChat);
+
     setLoading(true);
     try {
       const videoUrl = await aiService.generateVideo(prompt);
@@ -177,13 +213,13 @@ export function useChat(userId: string | undefined) {
         mediaUrl: videoUrl
       };
 
-      const updatedChat = { 
-        ...chat, 
-        messages: [...chat.messages, assistantMessage], 
+      const finalChat = { 
+        ...updatedChat, 
+        messages: [...updatedMessages, assistantMessage], 
         updatedAt: Date.now() 
       };
       
-      await firebaseService.saveChat(updatedChat);
+      await firebaseService.saveChat(finalChat);
     } catch (error) {
       console.error("Error generating video", error);
     } finally {

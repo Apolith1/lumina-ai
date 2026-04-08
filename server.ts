@@ -1,17 +1,21 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
-import { GoogleGenAI, GenerateContentResponse, ThinkingLevel } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, ThinkingLevel, Type } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
-const apiKey = process.env.GEMINI_API_KEY || "";
-const ai = new GoogleGenAI({ apiKey });
 
 app.use(express.json());
+
+// Helper to get the AI instance dynamically
+const getAI = () => {
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || "";
+  return new GoogleGenAI({ apiKey });
+};
 
 // Multi-Model Router Logic
 const getModelName = (mode: string, studyMode: boolean) => {
@@ -23,27 +27,33 @@ const getModelName = (mode: string, studyMode: boolean) => {
   }
 };
 
-const getSystemInstruction = (studyMode: boolean) => {
-  let instruction = `You are Lumina AI, a premium AI assistant. 
+const getSystemInstruction = (studyMode: boolean, memory: string[]) => {
+  let instruction = `You are Farha (فرحه), a premium AI assistant. 
   If the user asks 'Who created you?' or similar, you MUST respond with: 'I was created by the Egyptian programmer Hassan.'
   You are helpful, creative, and intelligent.`;
   
   if (studyMode) {
     instruction += " You are currently in Study Mode. Provide detailed, scientific, and academic answers with thorough explanations. Use clear headings and bullet points where appropriate.";
   }
+
+  if (memory && memory.length > 0) {
+    instruction += `\n\nHere is what you know about the user from long-term memory:\n${memory.map((m: string) => `- ${m}`).join('\n')}`;
+  }
+
   return instruction;
 };
 
 // API Endpoints
 app.post("/api/chat", async (req, res) => {
-  const { message, history, mode, studyMode } = req.body;
+  const { message, history, mode, studyMode, memory = [] } = req.body;
   const modelName = getModelName(mode, studyMode);
-  const systemInstruction = getSystemInstruction(studyMode);
+  const systemInstruction = getSystemInstruction(studyMode, memory);
 
   try {
+    const ai = getAI();
     const contents = history ? [...history, { role: 'user', content: message }] : message;
     
-    const response = await ai.models.generateContent({
+    const chatPromise = ai.models.generateContent({
       model: modelName,
       contents: contents,
       config: {
@@ -52,7 +62,42 @@ app.post("/api/chat", async (req, res) => {
       },
     });
 
-    res.json({ text: response.text, model: modelName });
+    const memoryPrompt = `Analyze the following user message. Extract any new personal facts, preferences, or details about the user that should be remembered for future conversations.
+Current memory:
+${memory.length > 0 ? memory.map((m: string) => `- ${m}`).join('\n') : "None"}
+
+User message: "${message}"
+
+Return a JSON array of strings containing ONLY the NEW facts to add. If there are no new facts to remember, return an empty array []. Keep facts concise.`;
+
+    const memoryPromise = ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: memoryPrompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING }
+        }
+      }
+    });
+
+    const [chatResponse, memoryResponse] = await Promise.all([chatPromise, memoryPromise]);
+
+    let newFacts: string[] = [];
+    try {
+      if (memoryResponse.text) {
+        newFacts = JSON.parse(memoryResponse.text);
+      }
+    } catch (e) {
+      console.error("Error parsing memory facts:", e);
+    }
+
+    res.json({ 
+      text: chatResponse.text, 
+      model: modelName,
+      newFacts 
+    });
   } catch (error: any) {
     console.error("Chat API Error:", error);
     res.status(500).json({ error: error.message });
@@ -62,6 +107,34 @@ app.post("/api/chat", async (req, res) => {
 app.post("/api/generate-video", async (req, res) => {
   const { prompt } = req.body;
   try {
+    const openaiKey = process.env.OPENAI_API_KEY;
+    
+    if (openaiKey) {
+      // Attempt to use OpenAI Sora API
+      const response = await fetch("https://api.openai.com/v1/videos/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${openaiKey}`
+        },
+        body: JSON.stringify({
+          model: "sora-1.0-turbo", // Placeholder for Sora model name
+          prompt: prompt
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Assuming the response format is similar to DALL-E
+        if (data.data && data.data[0] && data.data[0].url) {
+          return res.json({ videoUrl: data.data[0].url });
+        }
+      }
+      console.warn("OpenAI Sora API failed or returned unexpected format, falling back to Veo.");
+    }
+
+    // Fallback to Veo
+    const ai = getAI();
     let operation = await ai.models.generateVideos({
       model: 'veo-3.1-lite-generate-preview',
       prompt: prompt,
@@ -88,6 +161,7 @@ app.post("/api/generate-video", async (req, res) => {
 app.post("/api/generate-image", async (req, res) => {
   const { prompt } = req.body;
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: { parts: [{ text: prompt }] },
@@ -131,9 +205,14 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  // Only listen if we are not in a serverless environment like Vercel
+  if (!process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
 }
 
 startServer();
+
+export default app;

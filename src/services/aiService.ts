@@ -5,12 +5,13 @@ export class AIService {
     prompt: string, 
     mode: ModelType = 'Normal', 
     studyMode: boolean = false,
-    history: { role: 'user' | 'assistant', content: string }[] = []
+    history: { role: 'user' | 'assistant', content: string }[] = [],
+    memory: string[] = []
   ) {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: prompt, history, mode, studyMode }),
+      body: JSON.stringify({ message: prompt, history, mode, studyMode, memory }),
     });
 
     if (!response.ok) throw new Error("Failed to generate response");

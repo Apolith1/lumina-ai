@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth, signIn, logOut } from '../firebase';
+import { auth, signIn, logOut, signInAsGuest } from '../firebase';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -19,6 +19,7 @@ export function useAuth() {
     user,
     loading,
     signIn,
+    signInAsGuest,
     logOut,
     isAuthenticated: !!user
   };

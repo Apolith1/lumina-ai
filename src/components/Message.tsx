@@ -40,7 +40,7 @@ export function Message({ message, isStreaming, language }: MessageProps) {
       <div className={cn("flex-1 space-y-4 overflow-hidden", language === 'ar' && "text-right")}>
         <div className={cn("flex items-center justify-between", language === 'ar' && "flex-row-reverse")}>
           <p className="text-xs font-bold uppercase tracking-widest text-white/40">
-            {message.role === 'user' ? (language === 'ar' ? "أنت" : "You") : "Lumina AI"}
+            {message.role === 'user' ? (language === 'ar' ? "أنت" : "You") : (language === 'ar' ? "فرحه" : "Farha")}
             {message.model && <span className="ml-2 px-2 py-0.5 rounded-full bg-white/5 text-[10px] lowercase font-medium">{message.model}</span>}
           </p>
           
@@ -65,6 +65,18 @@ export function Message({ message, isStreaming, language }: MessageProps) {
               alt="Generated" 
               className="w-full h-auto max-h-[500px] object-contain"
               referrerPolicy="no-referrer"
+            />
+          </div>
+        )}
+
+        {message.type === 'video' && message.mediaUrl && (
+          <div className="mt-4 rounded-2xl overflow-hidden border border-white/10 glass">
+            <video 
+              src={message.mediaUrl} 
+              controls
+              autoPlay
+              loop
+              className="w-full h-auto max-h-[500px] object-contain"
             />
           </div>
         )}

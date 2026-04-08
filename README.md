@@ -1,20 +1,29 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Lumina AI
 
-# Run and deploy your AI Studio app
+Lumina AI is a premium full-stack AI application with multi-model intelligence, long-term memory, and creative generation capabilities.
 
-This contains everything you need to run your app locally.
+## Features
+- **Multi-Model Intelligence**: Intelligent routing between Normal (Gemini Flash), Pro, and Pro 2 (Gemini Pro with High Thinking) modes.
+- **Study Mode**: A dedicated toggle that forces the strongest reasoning models to provide detailed, scientific, and academic answers.
+- **Bilingual Support**: Full support for Arabic and English, including RTL (Right-to-Left) layout adjustments.
+- **Creative Generation**: Integrated endpoints for Image Generation (Gemini Image) and Video Generation (OpenAI Sora / Veo Lite).
+- **Long-Term Memory**: The AI automatically extracts and remembers user preferences and facts to provide personalized responses.
+- **Guest Mode**: Users can try the app without an account.
+- **Android App**: The app can be built into an Android APK using Capacitor.
 
-View your app in AI Studio: https://ai.studio/apps/e804b064-e909-47d0-b78c-02f0d7112dbf
+## How to Build the Android APK
 
-## Run Locally
+This project uses [Capacitor](https://capacitorjs.com/) to convert the web app into a native Android app.
 
-**Prerequisites:**  Node.js
+1. Ensure you have the Android SDK and Java installed on your machine.
+2. Run the following command to build the web assets, sync them with Capacitor, and compile the Android APK:
+   ```bash
+   npm run cap:build:android
+   ```
+3. The generated APK will be located at:
+   `android/app/build/outputs/apk/debug/app-debug.apk`
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Alternatively, you can open the Android project in Android Studio:
+```bash
+npx cap open android
+```

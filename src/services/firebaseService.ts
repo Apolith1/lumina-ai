@@ -167,5 +167,35 @@ export const firebaseService = {
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, path);
     }
+  },
+
+  subscribeToMemory(userId: string, callback: (facts: string[]) => void) {
+    const path = `users/${userId}/memory/data`;
+    return onSnapshot(doc(db, 'users', userId, 'memory', 'data'), (docSnap) => {
+      if (docSnap.exists()) {
+        callback(docSnap.data().facts || []);
+      } else {
+        callback([]);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+    });
+  },
+
+  async addUserMemory(userId: string, newFacts: string[]) {
+    if (!newFacts || newFacts.length === 0) return;
+    const path = `users/${userId}/memory/data`;
+    try {
+      const docRef = doc(db, 'users', userId, 'memory', 'data');
+      const docSnap = await getDoc(docRef);
+      let existingFacts: string[] = [];
+      if (docSnap.exists()) {
+        existingFacts = docSnap.data().facts || [];
+      }
+      const updatedFacts = Array.from(new Set([...existingFacts, ...newFacts]));
+      await setDoc(docRef, { facts: updatedFacts }, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    }
   }
 };
